@@ -61,8 +61,14 @@ contract CarNFT is ERC721URIStorage, Ownable {
         nextTokenId++;
     }
 
+    function ownerOfToken(uint256 tokenId) external view returns (address) {
+        require(tokenId < nextTokenId, "Token ID does not exist");
+        return ownerOf(tokenId);
+    }
+
     function withdraw() external onlySeller {
         uint256 balance = address(this).balance;
-        require(payable(seller).send(balance), "Withdrawal failed");
+        (bool sent,) = seller.call{value: balance}("");
+        require(sent, "Failed to send Ether");
     }
 }

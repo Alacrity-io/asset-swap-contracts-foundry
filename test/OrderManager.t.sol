@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
 import {OrderManager} from "../src/OrderManager.sol";
+import {CarNFT} from "../src/CarNFT.sol";
 
 contract OrderManagerTest is Test {
     OrderManager public orderM;
@@ -47,6 +48,15 @@ contract OrderManagerTest is Test {
         vm.stopPrank();
     }
 
+    /*
+    1- new nft minted
+        nft mint, and testing if the balance from the sc goes to the seller
+        and the buyer has recevied the nft in their accnt
+
+    2- already existing nft minted
+        safetrasnfer the ownesrhip of nft with tokenID 0 to the buyer from the seller 
+        AND THE money is properly transferred to the seller
+    */ 
     function testTransfer() public {
         vm.startPrank(seller);
     }
