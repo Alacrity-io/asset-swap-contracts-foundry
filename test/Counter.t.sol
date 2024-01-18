@@ -13,8 +13,9 @@ contract CounterTest is Test {
     }
 
     function test_Increment() public {
-        counter.increment();
+        uint256 val = counter.incrementCounter();
         assertEq(counter.number(), 1);
+        emit log_named_uint("counter incremented to the value of ", val);
     }
 
     function testFuzz_SetNumber(uint256 x) public {

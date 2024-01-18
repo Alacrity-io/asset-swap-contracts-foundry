@@ -8,7 +8,7 @@ contract Counter {
         number = newNumber;
     }
 
-    function increment() public {
-        number++;
+    function incrementCounter() external returns (uint256) {
+        return ++number;
     }
 }
