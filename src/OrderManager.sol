@@ -1,7 +1,9 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import {CarNFT} from "./CarNFT.sol";
 // OrderManager contract
+
 contract OrderManager {
     address public buyer;
     address public seller;
@@ -26,6 +28,23 @@ contract OrderManager {
         price = _price;
     }
 
+    //getters
+    function getBuyer() external view returns (address) {
+        return buyer; 
+    }
+
+    function getSeller() external view returns (address) {
+        return seller; 
+    }
+
+    function getPrice() external view returns (uint256) {
+        return price; 
+    }
+
+    function getBalance() external view returns (uint256) {
+        return address(this).balance; 
+    }
+
     //if the person already possess an NFT of the asset they would point to its address via this setter
     function setExistingNftAddress(address _nftContractAddress) external onlySeller {
         existingNftContractAddress = _nftContractAddress;
@@ -40,6 +59,7 @@ contract OrderManager {
         // Buyer deposits funds
         require(msg.value == price, "Incorrect deposit amount");
     }
+
 
     function transfer() external onlySeller {
         CarNFT carNFT;
