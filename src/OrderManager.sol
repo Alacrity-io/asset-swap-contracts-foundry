@@ -74,9 +74,9 @@ contract OrderManager {
             //nft deployed sc address would already be set before this func is called
             carNFT = CarNFT(nftContractAddress);
             // Mint the NFT to the buyer for a new contract
-            // (bool success,) = (address(carNFT)).delegatecall(abi.encodeWithSignature("mint()", buyer, "testing uri.."));
-            carNFT.mint(buyer, "testing uri");
-            // require(success, "failed to mint nft");
+            (bool success,) = (address(carNFT)).delegatecall(abi.encodeWithSignature("mint()", buyer, "testing uri.."));
+            // carNFT.mint(buyer, "testing uri");
+            require(success, "failed to mint nft");
         }
 
         setNftAddress(address(carNFT));
