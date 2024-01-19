@@ -4,12 +4,13 @@ pragma solidity ^0.8.13;
 import {Test, console} from "forge-std/Test.sol";
 import {OrderManager} from "../src/OrderManager.sol";
 import {CarNFT} from "../src/CarNFT.sol";
+import {NftEvents} from "../src/CarNFT.sol";
 
-contract OrderManagerTest is Test {
+contract OrderManagerTest is Test, NftEvents {
     OrderManager public orderM;
     //addresses
-    address buyer = address(0x0);
-    address seller = address(0x1);
+    address buyer = (0xA6466D12A42B4496CD8ce61343aF392A8d7Bd871);
+    address seller = (0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2);
     uint256 price = 0.2 * 1e18;
 
     function setUp() public {
@@ -56,8 +57,28 @@ contract OrderManagerTest is Test {
     2- already existing nft minted
         safetrasnfer the ownesrhip of nft with tokenID 0 to the buyer from the seller 
         AND THE money is properly transferred to the seller
-    */ 
+    */
+
+    function deposit() internal {
+        vm.startPrank(buyer);
+        vm.deal(buyer, 0.2 ether);
+        orderM.deposit{value: 0.2 ether}();
+        vm.stopPrank();
+    }
+
+    receive() external payable {}
+
     function testTransfer() public {
+        //laod eth into the contract
+        deposit();
+        uint256 contractBalance = address(orderM).balance;
+        emit log_named_uint("Contract's balance is", contractBalance);
         vm.startPrank(seller);
+        CarNFT nft = new CarNFT(price, buyer, seller, seller);
+        orderM.setNftAddress(address(nft));
+        orderM.transfer();
+        assertEq(address(seller).balance, contractBalance);
+        assertEq(buyer, nft.ownerOfToken(0));
+        vm.stopPrank();
     }
 }

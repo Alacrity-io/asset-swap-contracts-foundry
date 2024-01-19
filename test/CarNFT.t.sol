@@ -28,6 +28,7 @@ contract CarNftTest is Test {
         nft.mint(buyer, "token transferred");
         assertEq(buyer, nft.ownerOfToken(0));
         assertEq(nft.getNftID(), 1);
+        vm.stopPrank();
     }
 
     function testWithdraw() public {
@@ -41,5 +42,6 @@ contract CarNftTest is Test {
         balance = address(nft).balance;
         assertEq(balance, 0);
         assertEq(uint256(address(seller).balance), uint256(3 * 1e18));
+        vm.stopPrank();
     }
 }

@@ -30,19 +30,19 @@ contract OrderManager {
 
     //getters
     function getBuyer() external view returns (address) {
-        return buyer; 
+        return buyer;
     }
 
     function getSeller() external view returns (address) {
-        return seller; 
+        return seller;
     }
 
     function getPrice() external view returns (uint256) {
-        return price; 
+        return price;
     }
 
     function getBalance() external view returns (uint256) {
-        return address(this).balance; 
+        return address(this).balance;
     }
 
     //if the person already possess an NFT of the asset they would point to its address via this setter
@@ -50,8 +50,12 @@ contract OrderManager {
         existingNftContractAddress = _nftContractAddress;
     }
 
+    function getNftAddress() external view returns (address) {
+        return nftContractAddress;
+    }
+
     // if the person is minting an NFT of the asset for the first time, we'll deploy the contract and then provide it via this setter
-    function setNftAddress(address _nftContractAddress) public onlySeller {
+    function setNftAddress(address _nftContractAddress) public {
         nftContractAddress = _nftContractAddress;
     }
 
@@ -60,30 +64,31 @@ contract OrderManager {
         require(msg.value == price, "Incorrect deposit amount");
     }
 
-
-    function transfer() external onlySeller {
+    function transfer() public onlySeller {
         CarNFT carNFT;
 
         if (existingNftContractAddress != address(0)) {
             // If an existing NFT contract exists, use it
             carNFT = CarNFT(existingNftContractAddress);
         } else {
-            // Deploy a new instance of CarNFT if no existing contract
-            carNFT = new CarNFT(price, buyer, seller, buyer);
-
+            //nft deployed sc address would already be set before this func is called
+            carNFT = CarNFT(nftContractAddress);
             // Mint the NFT to the buyer for a new contract
+            // (bool success,) = (address(carNFT)).delegatecall(abi.encodeWithSignature("mint()", buyer, "testing uri.."));
             carNFT.mint(buyer, "testing uri");
+            // require(success, "failed to mint nft");
         }
 
         setNftAddress(address(carNFT));
         // Call the deposit function in the NFT contract
-        (bool depositSuccess,) = address(carNFT).call{value: price}("");
-        require(depositSuccess, "NFT deposit failed");
+        carNFT.deposit{value: address(this).balance}();
 
         // Withdraw funds from the NFT contract to the seller
+        // (bool suc,) = (address(carNFT)).delegatecall(abi.encodeWithSignature("withdraw()"));
+        // require(suc, "failed to withdraw");
         carNFT.withdraw();
 
-        if (existingNftContractAddress == address(0)) {
+        if (existingNftContractAddress != address(0)) {
             // Transfer ownership of the NFT to the buyer only if a new contract was deployed
             carNFT.transferFrom(address(this), buyer, carNFT.nextTokenId() - 1);
         }
