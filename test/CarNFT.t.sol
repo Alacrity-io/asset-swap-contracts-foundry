@@ -23,25 +23,25 @@ contract CarNftTest is Test {
         emit log_named_uint("the token id is ", nft.getNftID());
     }
 
-    function testMint() public {
-        vm.startPrank(seller);
-        nft.mint(buyer, "token transferred", seller);
-        assertEq(buyer, nft.ownerOfToken(0));
-        assertEq(nft.getNftID(), 1);
-        vm.stopPrank();
-    }
+    // function testMint() public {
+    //     vm.startPrank(seller);
+    //     nft.mint(buyer, "token transferred", seller);
+    //     assertEq(buyer, nft.ownerOfToken(0));
+    //     assertEq(nft.getNftID(), 1);
+    //     vm.stopPrank();
+    // }
 
-    function testWithdraw() public {
-        vm.deal(address(nft), 3 ether);
-        uint256 balance = address(nft).balance;
-        assertEq(balance, 3 * 1e18);
-        emit log_named_uint("balance in sc is ", balance);
-        emit log_named_uint("balance in seller's account is ", address(seller).balance);
-        vm.startPrank(seller);
-        nft.withdraw(seller);
-        balance = address(nft).balance;
-        assertEq(balance, 0);
-        assertEq(uint256(address(seller).balance), uint256(3 * 1e18));
-        vm.stopPrank();
-    }
+    // function testWithdraw() public {
+    //     vm.deal(address(nft), 3 ether);
+    //     uint256 balance = address(nft).balance;
+    //     assertEq(balance, 3 * 1e18);
+    //     emit log_named_uint("balance in sc is ", balance);
+    //     emit log_named_uint("balance in seller's account is ", address(seller).balance);
+    //     vm.startPrank(seller);
+    //     nft.withdraw(seller);
+    //     balance = address(nft).balance;
+    //     assertEq(balance, 0);
+    //     assertEq(uint256(address(seller).balance), uint256(3 * 1e18));
+    //     vm.stopPrank();
+    // }
 }

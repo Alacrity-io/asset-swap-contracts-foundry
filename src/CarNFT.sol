@@ -3,6 +3,8 @@ pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 
+/// SO FUCking INSECURE!~!!!!!!!
+
 contract NftEvents {
     event LogMsgSender(address indexed from);
     event ContractBalance(uint256 balance);
@@ -28,6 +30,10 @@ contract CarNFT is ERC721URIStorage, NftEvents {
     modifier onlyOwner() {
         require(msg.sender == owner, "Only nft owner can call this function");
         _;
+    }
+
+    function resetOwner(address _newOwner) external onlyOwner {
+        owner = _newOwner;
     }
 
     //getters
@@ -66,11 +72,10 @@ contract CarNFT is ERC721URIStorage, NftEvents {
         _locked = false;
     }
 
-    function mint(address to, string memory _tokenUri, address caller) public noReentrancy {
+    function mint(address to, string memory _tokenUri) public noReentrancy onlyOwner {
         emit LogMsgSender(seller);
         emit LogMsgSender(tx.origin);
         emit LogMsgSender(msg.sender);
-        require(seller == caller, "mint func needs to be called by the seller");
         require(nextTokenId < MAX_TOKENS, "Max tokens reached");
         _safeMint(to, nextTokenId);
         _setTokenURI(nextTokenId, _tokenUri);
@@ -82,28 +87,30 @@ contract CarNFT is ERC721URIStorage, NftEvents {
         return ownerOf(tokenId);
     }
 
-    function deposit(address caller) external payable noReentrancy {
-        // Buyer deposits funds
-        require(seller == caller, "deposit amt not by seller");
-        require(msg.value == price, "Incorrect deposit amount");
-        emit ContractBalance(address(this).balance);
-    }
+    // function deposit() external payable noReentrancy onlyOwner {
+    //     // Buyer deposits funds
+    //     emit ContractBalance(msg.value);
+    //     require(msg.value == price, "Incorrect deposit amount");
+    //     emit ContractBalance(address(this).balance);
+    // }
 
-    function withdraw(address caller) public noReentrancy {
-        require(seller == caller, "deposit amt not by seller");
-        uint256 balance = address(this).balance;
-        emit LogMsgSender(seller);
-        emit LogMsgSender(tx.origin);
-        address payable receiver = payable(seller);
-        (bool sent,) = receiver.call{value: balance}("");
-        require(sent, "Failed to send Ether");
-    }
+    // function withdraw() public noReentrancy onlyOwner {
+    //     uint256 balance = address(this).balance;
+    //     emit LogMsgSender(seller);
+    //     emit LogMsgSender(tx.origin);
+    //     address payable receiver = payable(seller);
+    //     (bool sent,) = receiver.call{value: balance}("");
+    //     require(sent, "Failed to send Ether");
+    // }
 
     function transferNFT(address from, address to, uint256 tokenId) external onlyOwner {
-        // Check if the sender (msg.sender) is the owner of the NFT
+        // from will be equal to msg.sender which will be the owner
         require(ownerOf(tokenId) == from, "Not the owner of the NFT");
 
         // Perform the transfer
         safeTransferFrom(from, to, tokenId);
     }
 }
+
+// caller is the sc addr of Order manager
+//

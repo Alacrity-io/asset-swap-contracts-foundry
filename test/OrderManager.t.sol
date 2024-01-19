@@ -60,53 +60,54 @@ contract OrderManagerTest is Test, NftEvents {
         AND THE money is properly transferred to the seller
     */
 
-    function deposit(OrderManager order) internal {
-        vm.startPrank(buyer);
-        vm.deal(buyer, 0.2 ether);
+    function deposit(OrderManager order, address prankAddr) internal {
+        vm.startPrank(prankAddr);
+        vm.deal(prankAddr, 0.2 ether);
         order.deposit{value: 0.2 ether}();
         vm.stopPrank();
     }
 
-    function assignNFT() internal returns (address) {
+    function simulateTransfer() internal returns (CarNFT) {
+        deposit(orderM, buyer);
         vm.startPrank(seller);
         CarNFT nft = new CarNFT(price, buyer, seller);
-        orderM.setNftAddress(address(nft));
-        orderM.transfer();
-        //nft has been transferred over to the buyer
+        //the owner is the seller
+        nft.mint(buyer, "sending it to buyer");
+        nft.resetOwner(buyer);
+        orderM.withdraw();
         vm.stopPrank();
-        return address(nft);
+        return nft;
     }
 
-    receive() external payable {}
-
     function testNewTransfer() public {
-        //laod eth into the contract
-        deposit(orderM);
+        deposit(orderM, buyer);
         uint256 contractBalance = address(orderM).balance;
-        emit log_named_uint("Contract's balance is", contractBalance);
         vm.startPrank(seller);
         CarNFT nft = new CarNFT(price, buyer, seller);
-        orderM.setNftAddress(address(nft));
-        orderM.transfer();
+        //the owner is the seller
+        nft.mint(buyer, "sending it to buyer");
+        nft.resetOwner(buyer);
+        orderM.withdraw();
+        vm.stopPrank();
         assertEq(address(seller).balance, contractBalance);
         assertEq(buyer, nft.ownerOfToken(0));
-        vm.stopPrank();
     }
 
     function testOldTransfer() public {
-        //laod eth into the contract
-        address existingNft = assignNFT();
-        //now the buyer will become seller
-        OrderManager newOrderM = new OrderManager(newBuyer, buyer, price);
-        uint256 contractBalance = address(newOrderM).balance;
-        //funds transferred over to the sc eq to teh price
-        deposit(newOrderM);
-        vm.startPrank(seller);
-        newOrderM.setExistingNftAddress(existingNft);
-        CarNFT nft = new CarNFT(price, newBuyer, buyer);
-        newOrderM.transfer();
+        //nft transferred to buyer
+        CarNFT existingNft = simulateTransfer();
+        vm.startPrank(buyer);
+        OrderManager newOrder = new OrderManager(newBuyer, buyer, price);
+        //now transferring nft to newbuyer
+        vm.stopPrank();
+        deposit(newOrder, newBuyer);
+        vm.startPrank(buyer);
+        uint256 contractBalance = address(newOrder).balance;
+        existingNft.transferNFT(buyer, newBuyer, 0);
+        existingNft.resetOwner(newBuyer);
+        newOrder.withdraw();
         assertEq(address(buyer).balance, contractBalance);
-        assertEq(newBuyer, nft.ownerOfToken(0));
+        assertEq(newBuyer, existingNft.ownerOfToken(0));
         vm.stopPrank();
     }
 }

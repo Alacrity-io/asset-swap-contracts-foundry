@@ -67,29 +67,10 @@ contract OrderManager {
         require(msg.value == price, "Incorrect deposit amount");
     }
 
-    function transfer() public onlySeller {
-        CarNFT carNFT;
-        emit LogMsgSender(msg.sender);
-
-        if (existingNftContractAddress != address(0)) {
-            // If an existing NFT contract exists, use it
-            carNFT = CarNFT(existingNftContractAddress);
-        } else {
-            //nft deployed sc address would already be set before this func is called
-            carNFT = CarNFT(nftContractAddress);
-            // Mint the NFT to the buyer for a new contract
-            carNFT.mint(buyer, "testing uri", msg.sender);
-        }
-
-        // Call the deposit function in the NFT contract
-        carNFT.deposit{value: address(this).balance}(msg.sender);
-
-        // Withdraw funds from the NFT contract to the seller
-        carNFT.withdraw(msg.sender);
-
-        if (existingNftContractAddress != address(0)) {
-            // Transfer ownership of the NFT to the buyer only if a new contract was deployed
-            carNFT.transferNFT(seller, buyer, 0);
-        }
+    function withdraw() public onlySeller {
+        uint256 balance = address(this).balance;
+        address payable receiver = payable(seller);
+        (bool sent,) = receiver.call{value: balance}("");
+        require(sent, "Failed to send Ether");
     }
 }
