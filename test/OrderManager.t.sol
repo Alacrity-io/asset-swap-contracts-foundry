@@ -68,13 +68,27 @@ contract OrderManagerTest is Test, NftEvents {
 
     receive() external payable {}
 
-    function testTransfer() public {
+    function testNewTransfer() public {
         //laod eth into the contract
         deposit();
         uint256 contractBalance = address(orderM).balance;
         emit log_named_uint("Contract's balance is", contractBalance);
         vm.startPrank(seller);
-        CarNFT nft = new CarNFT(price, buyer, seller, seller);
+        CarNFT nft = new CarNFT(price, buyer, seller);
+        orderM.setNftAddress(address(nft));
+        orderM.transfer();
+        assertEq(address(seller).balance, contractBalance);
+        assertEq(buyer, nft.ownerOfToken(0));
+        vm.stopPrank();
+    }
+
+    function testOldTransfer() public {
+        //laod eth into the contract
+        deposit();
+        uint256 contractBalance = address(orderM).balance;
+        emit log_named_uint("Contract's balance is", contractBalance);
+        vm.startPrank(seller);
+        CarNFT nft = new CarNFT(price, buyer, seller);
         orderM.setNftAddress(address(nft));
         orderM.transfer();
         assertEq(address(seller).balance, contractBalance);

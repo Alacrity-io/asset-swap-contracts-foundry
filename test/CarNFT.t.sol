@@ -12,7 +12,7 @@ contract CarNftTest is Test {
     uint256 price = 0.2 * 1e18;
 
     function setUp() public {
-        nft = new CarNFT(price, buyer, seller, seller);
+        nft = new CarNFT(price, buyer, seller);
     }
 
     function testConstructor() public {
@@ -25,7 +25,7 @@ contract CarNftTest is Test {
 
     function testMint() public {
         vm.startPrank(seller);
-        nft.mint(buyer, "token transferred");
+        nft.mint(buyer, "token transferred", seller);
         assertEq(buyer, nft.ownerOfToken(0));
         assertEq(nft.getNftID(), 1);
         vm.stopPrank();
@@ -38,7 +38,7 @@ contract CarNftTest is Test {
         emit log_named_uint("balance in sc is ", balance);
         emit log_named_uint("balance in seller's account is ", address(seller).balance);
         vm.startPrank(seller);
-        nft.withdraw();
+        nft.withdraw(seller);
         balance = address(nft).balance;
         assertEq(balance, 0);
         assertEq(uint256(address(seller).balance), uint256(3 * 1e18));

@@ -11,6 +11,9 @@ contract OrderManager {
     address public nftContractAddress;
     address public existingNftContractAddress;
 
+    //events
+    event LogMsgSender(address indexed from);
+
     modifier onlyBuyer() {
         require(msg.sender == buyer, "Only buyer can call this function");
         _;
@@ -66,6 +69,7 @@ contract OrderManager {
 
     function transfer() public onlySeller {
         CarNFT carNFT;
+        emit LogMsgSender(msg.sender);
 
         if (existingNftContractAddress != address(0)) {
             // If an existing NFT contract exists, use it
@@ -74,19 +78,15 @@ contract OrderManager {
             //nft deployed sc address would already be set before this func is called
             carNFT = CarNFT(nftContractAddress);
             // Mint the NFT to the buyer for a new contract
-            (bool success,) = (address(carNFT)).delegatecall(abi.encodeWithSignature("mint()", buyer, "testing uri.."));
-            // carNFT.mint(buyer, "testing uri");
-            require(success, "failed to mint nft");
+            carNFT.mint(buyer, "testing uri", msg.sender);
         }
 
         setNftAddress(address(carNFT));
         // Call the deposit function in the NFT contract
-        carNFT.deposit{value: address(this).balance}();
+        carNFT.deposit{value: address(this).balance}(msg.sender);
 
         // Withdraw funds from the NFT contract to the seller
-        // (bool suc,) = (address(carNFT)).delegatecall(abi.encodeWithSignature("withdraw()"));
-        // require(suc, "failed to withdraw");
-        carNFT.withdraw();
+        carNFT.withdraw(msg.sender);
 
         if (existingNftContractAddress != address(0)) {
             // Transfer ownership of the NFT to the buyer only if a new contract was deployed

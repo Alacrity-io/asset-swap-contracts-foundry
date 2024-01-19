@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract NftEvents {
     event LogMsgSender(address indexed from);
@@ -10,33 +9,27 @@ contract NftEvents {
 }
 
 // CarNFT contract
-contract CarNFT is ERC721URIStorage, Ownable, NftEvents {
+contract CarNFT is ERC721URIStorage, NftEvents {
     uint256 public price;
     address public buyer;
+    address public owner;
     address public seller;
     uint256 public nextTokenId = 0;
     uint256 public constant MAX_TOKENS = 1;
     uint256 public constant MAX_MINT_PER_TX = 1;
 
-    constructor(uint256 setPrice, address _buyer, address _seller, address initialOwner)
-        ERC721("CarNFT", "CAR")
-        Ownable(initialOwner)
-    {
+    constructor(uint256 setPrice, address _buyer, address _seller) ERC721("CarNFT", "CAR") {
         price = setPrice;
         buyer = _buyer;
         seller = _seller;
-        initialOwner = _seller;
+        owner = msg.sender;
     }
 
-    modifier onlyBuyer() {
-        require(msg.sender == buyer, "Only nft buyer can call this function");
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only nft owner can call this function");
         _;
     }
 
-    modifier onlySeller() {
-        require(msg.sender == seller, "Only nft seller can call this function");
-        _;
-    }
     //getters
 
     function getBuyer() public view returns (address) {
@@ -59,6 +52,10 @@ contract CarNFT is ERC721URIStorage, Ownable, NftEvents {
         return nextTokenId;
     }
 
+    function getOwner() public view returns (address) {
+        return owner;
+    }
+
     //rentrancy guard
     bool private _locked;
 
@@ -69,8 +66,11 @@ contract CarNFT is ERC721URIStorage, Ownable, NftEvents {
         _locked = false;
     }
 
-    function mint(address to, string calldata _tokenUri) public {
+    function mint(address to, string memory _tokenUri, address caller) public noReentrancy {
+        emit LogMsgSender(seller);
+        emit LogMsgSender(tx.origin);
         emit LogMsgSender(msg.sender);
+        require(seller == caller, "mint func needs to be called by the seller");
         require(nextTokenId < MAX_TOKENS, "Max tokens reached");
         _safeMint(to, nextTokenId);
         _setTokenURI(nextTokenId, _tokenUri);
@@ -82,15 +82,18 @@ contract CarNFT is ERC721URIStorage, Ownable, NftEvents {
         return ownerOf(tokenId);
     }
 
-    function deposit() external payable {
+    function deposit(address caller) external payable noReentrancy {
         // Buyer deposits funds
+        require(seller == caller, "deposit amt not by seller");
         require(msg.value == price, "Incorrect deposit amount");
         emit ContractBalance(address(this).balance);
     }
 
-    function withdraw() public noReentrancy {
+    function withdraw(address caller) public noReentrancy {
+        require(seller == caller, "deposit amt not by seller");
         uint256 balance = address(this).balance;
         emit LogMsgSender(seller);
+        emit LogMsgSender(tx.origin);
         address payable receiver = payable(seller);
         (bool sent,) = receiver.call{value: balance}("");
         require(sent, "Failed to send Ether");
