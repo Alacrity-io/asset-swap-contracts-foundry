@@ -98,4 +98,12 @@ contract CarNFT is ERC721URIStorage, NftEvents {
         (bool sent,) = receiver.call{value: balance}("");
         require(sent, "Failed to send Ether");
     }
+
+    function transferNFT(address from, address to, uint256 tokenId) external onlyOwner {
+        // Check if the sender (msg.sender) is the owner of the NFT
+        require(ownerOf(tokenId) == from, "Not the owner of the NFT");
+
+        // Perform the transfer
+        safeTransferFrom(from, to, tokenId);
+    }
 }

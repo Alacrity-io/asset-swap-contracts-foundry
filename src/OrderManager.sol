@@ -81,7 +81,6 @@ contract OrderManager {
             carNFT.mint(buyer, "testing uri", msg.sender);
         }
 
-        setNftAddress(address(carNFT));
         // Call the deposit function in the NFT contract
         carNFT.deposit{value: address(this).balance}(msg.sender);
 
@@ -90,7 +89,7 @@ contract OrderManager {
 
         if (existingNftContractAddress != address(0)) {
             // Transfer ownership of the NFT to the buyer only if a new contract was deployed
-            carNFT.transferFrom(address(this), buyer, carNFT.nextTokenId() - 1);
+            carNFT.transferNFT(seller, buyer, 0);
         }
     }
 }
