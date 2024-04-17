@@ -110,4 +110,15 @@ contract OrderManagerTest is Test, NftEvents {
         assertEq(newBuyer, existingNft.ownerOfToken(0));
         vm.stopPrank();
     }
+
+    function testCancelOrder() public {
+        deposit(orderM, buyer);
+        uint256 contractBalance = address(orderM).balance;
+        vm.startPrank(seller);
+        orderM.cancelOrder();
+        assertEq(address(buyer).balance, contractBalance);
+        vm.stopPrank();
+    }
+
+
 }
