@@ -115,6 +115,7 @@ contract OrderManagerTest is Test {
         address nftContractAddress = orderM.s_nftContractAddress();
         VehicleNFT nft = VehicleNFT(nftContractAddress);
         assertEq(buyer, nft.getOwnerOfTokenById(1));
+        assertEq(seller.balance, 10 ether + price);
         vm.stopPrank();
     }
 }
