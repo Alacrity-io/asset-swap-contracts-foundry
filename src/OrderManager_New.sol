@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.23;
 
 import {CarNFT} from "./CarNFT.sol";
 
@@ -102,7 +102,7 @@ contract OrderManager_New {
         if (!sent) {
             revert OrderManagerWithdrawFailed();
         }
-        order.orderState = OrderState.S_CONFIRMED;
+        order.orderState = OrderState.COMPLETED;
         emit FundsTransferredToSeller(receiver, balance);
     }
 
