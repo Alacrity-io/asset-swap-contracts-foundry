@@ -13,16 +13,21 @@ contract VehicleNFT is ERC721URIStorage {
 
     event TokenMinted(uint256 indexed tokenId, string tokenURI, address s_OrderManagerAddress);
 
+    modifier onlyOrderManager() {
+        require(msg.sender == s_OrderManagerAddress, "Only OrderManager can call this function");
+        _;
+    }
+
     constructor(address _orderManagerAddress) ERC721("VehicleNFT", "VHL") {
         //this also means that the orderManagerAddress is the owner of the NFT contract
         //we are tightly coupling the NFT contract with the OrderManager contract
         s_OrderManagerAddress = _orderManagerAddress;
     }
 
-    function mintToken(string memory tokenURI) public returns (uint256) {
+    function mintToken(string memory tokenURI) public onlyOrderManager returns (uint256) {
         ++_tokenId;
         uint256 newItemId = _tokenId;
-        _safeMint(msg.sender, newItemId);
+        _mint(msg.sender, newItemId);
         _creators[newItemId] = msg.sender;
         _setTokenURI(newItemId, tokenURI);
 
@@ -49,8 +54,18 @@ contract VehicleNFT is ERC721URIStorage {
         return ownedTokenIds;
     }
 
+    /// @dev Returns the original creator of the token; which will be the OrderManager contract
+    /// @param tokenId : uint256 val of tokenID
+    /// @return address the original creator of the token; which will be the OrderManager contract
     function getTokenCreatorById(uint256 tokenId) public view returns (address) {
         return _creators[tokenId];
+    }
+
+    /// @dev Returns the current OWNER of the token
+    /// @param tokenId : uint256 val of tokenID
+    /// @return address the address of the current owner of the token
+    function getOwnerOfTokenById(uint256 tokenId) public view returns (address) {
+        return ownerOf(tokenId);
     }
 
     function getTokensCreatedByMe() public view returns (uint256[] memory) {

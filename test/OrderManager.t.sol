@@ -3,10 +3,9 @@ pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
 import {OrderManager} from "../src/OrderManager.sol";
-import {CarNFT} from "../src/CarNFT.sol";
-import {NftEvents} from "../src/CarNFT.sol";
+import {VehicleNFT} from "../src/VehicleNFT.sol";
 
-contract OrderManagerTest is Test, NftEvents {
+contract OrderManagerTest is Test {
     OrderManager public orderM;
     //addresses
     address buyer = (0xA6466D12A42B4496CD8ce61343aF392A8d7Bd871);
@@ -15,27 +14,30 @@ contract OrderManagerTest is Test, NftEvents {
     uint256 price = 0.2 * 1e18;
 
     function setUp() public {
-        orderM = new OrderManager(buyer, seller, price);
+        orderM = new OrderManager();
     }
 
-    function testConstructor() public {
-        assertEq(orderM.getBuyer(), buyer);
-        assertEq(orderM.getSeller(), seller);
-        assertEq(orderM.getPrice(), price);
-        emit log_named_uint("the contracts' balance is ", price);
+    function testListAsset() public returns (uint256) {
+        vm.startPrank(seller);
+        uint256 orderId = orderM.ListAsset(buyer, price);
+        assertEq(orderM.getOrderById(orderId).owner, seller);
+        assertEq(orderM.getOrderById(orderId).buyer, buyer);
+        assertEq(orderM.getOrderById(orderId).price, price);
+        // assertEq(orderM.getOrderById(orderId).orderState, orderM.OrderState.B_REQUESTED);
+        vm.stopPrank();
+        return orderId;
     }
 
     function testDeposit() public {
-        // Assuming startPrank, deal, and stopPrank functions work as expected
+        // Deposit into OrderManager contract
+        uint256 orderId = testListAsset();
+
         vm.startPrank(buyer);
         vm.deal(buyer, 10 ether);
-
         // Ensure the buyer has the expected balance
         uint256 buyerBalanceBefore = address(buyer).balance;
         assertEq(buyerBalanceBefore, 10 ether);
-
-        // Deposit into OrderManager contract
-        orderM.deposit{value: 0.2 ether}();
+        orderM.deposit{value: price}(orderId);
 
         // Ensure the balance of the OrderManager contract is updated
         uint256 contractBalance = orderM.getBalance();
@@ -50,75 +52,69 @@ contract OrderManagerTest is Test, NftEvents {
         vm.stopPrank();
     }
 
-    /*
-    1- new nft minted
-        nft mint, and testing if the balance from the sc goes to the seller
-        and the buyer has recevied the nft in their accnt
-
-    2- already existing nft minted
-        safetrasnfer the ownesrhip of nft with tokenID 0 to the buyer from the seller 
-        AND THE money is properly transferred to the seller
-    */
-
-    function deposit(OrderManager order, address prankAddr) internal {
-        vm.startPrank(prankAddr);
-        vm.deal(prankAddr, 0.2 ether);
-        order.deposit{value: 0.2 ether}();
-        vm.stopPrank();
-    }
-
-    function simulateTransfer() internal returns (CarNFT) {
-        deposit(orderM, buyer);
+    function testDepositFailWhenAnyoneExceptBuyerCallsIt() public {
+        uint256 orderId = testListAsset();
         vm.startPrank(seller);
-        CarNFT nft = new CarNFT(price, buyer, seller);
-        //the owner is the seller
-        nft.mint(buyer, "sending it to buyer");
-        nft.resetOwner(buyer);
-        orderM.withdraw();
-        vm.stopPrank();
-        return nft;
+        vm.expectRevert();
+        orderM.deposit{value: price}(orderId);
     }
 
-    function testNewTransfer() public {
-        deposit(orderM, buyer);
-        uint256 contractBalance = address(orderM).balance;
-        vm.startPrank(seller);
-        CarNFT nft = new CarNFT(price, buyer, seller);
-        //the owner is the seller
-        nft.mint(buyer, "sending it to buyer");
-        nft.resetOwner(buyer);
-        orderM.withdraw();
-        vm.stopPrank();
-        assertEq(address(seller).balance, contractBalance);
-        assertEq(buyer, nft.ownerOfToken(0));
-    }
-
-    function testOldTransfer() public {
-        //nft transferred to buyer
-        CarNFT existingNft = simulateTransfer();
+    function testCancelOrderBuyer() public {
+        uint256 orderId = testListAsset();
         vm.startPrank(buyer);
-        OrderManager newOrder = new OrderManager(newBuyer, buyer, price);
-        //now transferring nft to newbuyer
+        vm.deal(buyer, 10 ether);
+        orderM.deposit{value: price}(orderId);
+        orderM.cancelOrder(orderId);
+        assertEq(buyer.balance, 10 ether);
+
+        // assertEq(orderM.getOrderById(orderId).orderState, orderM.OrderState.B_CANCELLED);
+        assertEq(orderM.getOrderById(orderId).buyer, address(0));
         vm.stopPrank();
-        deposit(newOrder, newBuyer);
+    }
+
+    function testConfirmOrderSellerPreMatureConfirmation() public {
+        uint256 orderId = testListAsset();
         vm.startPrank(buyer);
-        uint256 contractBalance = address(newOrder).balance;
-        existingNft.transferNFT(buyer, newBuyer, 0);
-        existingNft.resetOwner(newBuyer);
-        newOrder.withdraw();
-        assertEq(address(buyer).balance, contractBalance);
-        assertEq(newBuyer, existingNft.ownerOfToken(0));
+        vm.deal(buyer, 10 ether);
+        orderM.deposit{value: price}(orderId);
         vm.stopPrank();
-    }
-
-    function testCancelOrder() public {
-        deposit(orderM, buyer);
-        uint256 contractBalance = address(orderM).balance;
         vm.startPrank(seller);
-        orderM.cancelOrder();
-        assertEq(address(buyer).balance, contractBalance);
+        vm.expectRevert();
+        orderM.confirmOrder(orderId);
+        // assertEq(orderM.getOrderById(orderId).orderState, orderM.OrderState.B_CONFIRMED);
         vm.stopPrank();
     }
 
+    function testConfirmOrder() public {
+        uint256 orderId = testListAsset();
+        vm.startPrank(buyer);
+        vm.deal(buyer, 10 ether);
+        orderM.deposit{value: price}(orderId);
+        orderM.confirmOrder(orderId);
+        vm.stopPrank();
+        vm.startPrank(seller);
+        orderM.confirmOrder(orderId);
+        // assertEq(orderM.getOrderById(orderId).orderState, orderM.OrderState.B_CONFIRMED);
+        vm.stopPrank();
+    }
 
+    // transfering ownership of the NFT to the buyer
+    function testMintNftToBuyerAndWithdraw() public {
+        uint256 orderId = testListAsset();
+        vm.startPrank(buyer);
+        vm.deal(buyer, 10 ether);
+        orderM.deposit{value: price}(orderId);
+        orderM.confirmOrder(orderId);
+        vm.stopPrank();
+
+        vm.startPrank(seller);
+        orderM.confirmOrder(orderId);
+        emit log_address(orderM.getOrderById(orderId).seller);
+        orderM.mintNftToBuyerAndWithdraw(orderId, "testURI");
+        // assertEq(orderM.getOrderById(orderId).orderState, orderM.OrderState.S_CONFIRMED);
+        address nftContractAddress = orderM.s_nftContractAddress();
+        VehicleNFT nft = VehicleNFT(nftContractAddress);
+        assertEq(buyer, nft.getOwnerOfTokenById(1));
+        vm.stopPrank();
+    }
 }
