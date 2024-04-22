@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {CarNFT} from "./CarNFT.sol";
+import {VehicleNFT} from "./VehicleNFT.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract OrderManager_New {
     // Errors
@@ -63,8 +64,9 @@ contract OrderManager_New {
 
     // Functions
     // we can set the nftContractAddress for the assets in the constructor
-    constructor(address nftContractAddress) {
-        s_nftContractAddress = nftContractAddress;
+    constructor() {
+        VehicleNFT vNft = new VehicleNFT(address(this));
+        s_nftContractAddress = address(vNft);
     }
 
     // External
@@ -74,7 +76,8 @@ contract OrderManager_New {
     /// @param _buyer : the buyer of the asset; _price: the price of the asset; msg.sender is the seller  and the owner of the asset; s_nftContractAddress is the address of the nft contract which would have been set in the constructor
     /// @return uin256 orderID: the unique identifier of the order
     function ListAsset(address _buyer, uint256 _price) external returns (uint256) {
-        Order memory newOrder = Order(msg.sender, _buyer, msg.sender, _price, s_nftContractAddress, OrderState.B_REQUESTED, false);
+        Order memory newOrder =
+            Order(msg.sender, _buyer, msg.sender, _price, s_nftContractAddress, OrderState.B_REQUESTED, false);
         s_Orders[++s_orderCount] = newOrder;
         return s_orderCount;
     }
@@ -88,22 +91,6 @@ contract OrderManager_New {
         order.orderState = OrderState.B_DEPOSITED;
         order.hasDeposited = true;
         emit FundsDeposited(msg.sender, msg.value, _orderId);
-    }
-
-    function withdraw(uint256 _orderId) external onlySeller(_orderId, msg.sender) {
-        Order storage order = s_Orders[_orderId];
-
-        //if this func is called after deposition of funds
-        require(order.hasDeposited == true, "Funds have not been deposited in the contract just yet!");
-
-        uint256 balance = order.price;
-        address payable receiver = payable(order.seller);
-        (bool sent,) = receiver.call{value: balance}("");
-        if (!sent) {
-            revert OrderManagerWithdrawFailed();
-        }
-        order.orderState = OrderState.COMPLETED;
-        emit FundsTransferredToSeller(receiver, balance);
     }
 
     /// @notice cancelOrder: order could be cancelled by either buyer or seller
@@ -140,8 +127,49 @@ contract OrderManager_New {
         if (msg.sender == order.buyer) {
             order.orderState = OrderState.B_CONFIRMED;
         } else {
+            if (order.orderState != OrderState.B_CONFIRMED) {
+                revert("Buyer has not confirmed the order yet!");
+            }
             order.orderState = OrderState.S_CONFIRMED;
+            // withdraw the funds of asset's worth to the seller
+            withdrawFundsToSellerAddress(_orderId);
         }
     }
 
+    function mintNftToBuyerAndWithdraw(uint256 _orderId, string memory _tokenUri)
+        external
+        onlySeller(_orderId, msg.sender)
+    {
+        Order storage order = s_Orders[_orderId];
+        VehicleNFT nft = VehicleNFT(order.nftContractAddress);
+        //minting nft token
+        uint256 tokenId = nft.mintToken(_tokenUri);
+        //trasnsferring ownership to buyer
+        // during minting we have given the orderManager contract the approval to transfer the NFTs
+        nft.transferFrom(address(this), order.buyer, tokenId);
+
+        //withdraw the funds to the seller
+        withdrawFundsToSellerAddress(_orderId);
+    }
+
+    // Internal functions
+
+    /// @notice  withdraw: the seller can withdraw the funds after the buyer has confirmed the order
+    /// @dev will be called internally after the order has been confirmed by both the parties
+    /// @param _orderId: the unique identifier of the order
+    function withdrawFundsToSellerAddress(uint256 _orderId) internal {
+        Order storage order = s_Orders[_orderId];
+
+        //if this func is called after deposition of funds
+        require(order.hasDeposited == true, "Funds have not been deposited in the contract just yet!");
+
+        uint256 balance = order.price;
+        address payable receiver = payable(order.seller);
+        (bool sent,) = receiver.call{value: balance}("");
+        if (!sent) {
+            revert OrderManagerWithdrawFailed();
+        }
+        order.orderState = OrderState.COMPLETED;
+        emit FundsTransferredToSeller(receiver, balance);
+    }
 }

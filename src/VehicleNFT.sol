@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.18;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
@@ -14,6 +14,8 @@ contract VehicleNFT is ERC721URIStorage {
     event TokenMinted(uint256 indexed tokenId, string tokenURI, address s_OrderManagerAddress);
 
     constructor(address _orderManagerAddress) ERC721("VehicleNFT", "VHL") {
+        //this also means that the orderManagerAddress is the owner of the NFT contract
+        //we are tightly coupling the NFT contract with the OrderManager contract
         s_OrderManagerAddress = _orderManagerAddress;
     }
 
