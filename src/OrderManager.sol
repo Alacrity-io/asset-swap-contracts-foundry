@@ -3,16 +3,15 @@ pragma solidity ^0.8.23;
 
 import {VehicleNFT} from "./VehicleNFT.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract OrderManager {
-    // Errors
+contract OrderManager is ReentrancyGuard {
+    //----------------------------------ERRORS----------------------------------------------
     error OrderManagerWithdrawFailed();
     error OrderManagerDepositAmtInsufficient();
 
-    // struct MetaData of the Asset
-
-    //structs
-    enum OrderState {
+    //----------------------------------STATE VARS----------------------------------------------
+    enum e_OrderState {
         B_REQUESTED,
         B_DEPOSITED,
         B_CONFIRMED,
@@ -29,110 +28,121 @@ contract OrderManager {
         uint256 price;
         address nftContractAddress;
         uint256 tokenId;
-        OrderState orderState;
+        e_OrderState orderState;
         bool hasDeposited;
     }
 
-    //state_vars
-    mapping(uint256 => Order) public s_Orders;
+    mapping(uint256 => Order) public m_Orders;
     uint256 public s_orderCount = 0;
     address public s_nftContractAddress;
 
-    // Events
+    //----------------------------------EVENTS----------------------------------------------
     event LogMsgSender(address indexed from);
     event FundsTransferredToBuyer(address indexed to, uint256 indexed amount);
     event FundsTransferredToSeller(address indexed to, uint256 indexed amount);
     event FundsDeposited(address indexed from, uint256 indexed amount, uint256 indexed orderId);
 
-    // Modifiers
+    //----------------------------------MODIFIERS----------------------------------------------
     modifier onlyBuyer(uint256 _orderId, address msgSender) {
-        Order memory order = s_Orders[_orderId];
-        require(msgSender == order.buyer, "Only buyer can call this function");
+        require(msgSender == m_Orders[_orderId].buyer, "Only buyer can call this function");
         _;
     }
 
     modifier onlySeller(uint256 _orderId, address msgSender) {
-        Order memory order = s_Orders[_orderId];
-        require(msgSender == order.seller, "Only seller can call this function");
+        require(msgSender == m_Orders[_orderId].seller, "Only seller can call this function");
         _;
     }
 
     modifier onlyParticipants(uint256 _orderId, address msgSender) {
-        Order memory order = s_Orders[_orderId];
+        Order memory order = m_Orders[_orderId];
         require(msgSender == order.buyer || msgSender == order.seller, "Only buyer or seller can call this function");
         _;
     }
 
-    // Functions
-    // we can set the nftContractAddress for the assets in the constructor
+    /// @dev constructor sets the address of the NFT contract
     constructor() {
         VehicleNFT vNft = new VehicleNFT(address(this));
         s_nftContractAddress = address(vNft);
     }
 
-    // External
+    //----------------------------------EXTERNAL FUNCTIONS----------------------------------------------
 
     /// @notice func to create a listed of an advertised asset
     /// @dev    the owner of the asset is the seller of the asset
-    /// @param _buyer : the buyer of the asset; _price: the price of the asset; msg.sender is the seller  and the owner of the asset; s_nftContractAddress is the address of the nft contract which would have been set in the constructor
+    /// @param _buyer : the buyer of the asset; _price: the price of the asset; msg.sender is the seller 
+    /// and the owner of the asset; s_nftContractAddress is the address of the nft contract which would have been set in the constructor
     /// @return uin256 orderID: the unique identifier of the order
     function ListAsset(address _buyer, uint256 _price) external returns (uint256) {
-        Order memory newOrder =
-            Order(msg.sender, _buyer, msg.sender, _price, s_nftContractAddress, 0, OrderState.B_REQUESTED, false);
-        s_Orders[++s_orderCount] = newOrder;
+        m_Orders[++s_orderCount] =
+            Order(msg.sender, _buyer, msg.sender, _price, s_nftContractAddress, 0, e_OrderState.B_REQUESTED, false);
         return s_orderCount;
     }
 
-    // installment support
+    // TODO: installment support
+    /// @notice func for the buyer to deposit the funds for the asset
+    /// @dev changes the state of the order to B_DEPOSITED
+    /// @param _orderId : the orderID of the asset; msg.value is the amount deposited by the buyer
     function deposit(uint256 _orderId) external payable onlyBuyer(_orderId, msg.sender) {
-        Order storage order = s_Orders[_orderId];
+        Order storage order = m_Orders[_orderId];
         if (msg.value != order.price) {
             revert OrderManagerDepositAmtInsufficient();
         }
-        order.orderState = OrderState.B_DEPOSITED;
+        order.orderState = e_OrderState.B_DEPOSITED;
         order.hasDeposited = true;
         emit FundsDeposited(msg.sender, msg.value, _orderId);
     }
 
     /// @notice cancelOrder: order could be cancelled by either buyer or seller
-    /// @dev if a buyer cancels then : their funds are returned and order is cancelled and order is deleted from the mapping; if a seller cancels then : if there are funds;then they are retureed; if not the order state is just cancelled; and if canelled it can't be modifed again
+    /// @dev if a buyer cancels then : their funds are returned and order is cancelled and order is deleted from the mapping; 
+    /// if a seller cancels then : if there are funds;then they are retureed; if not the order state is just cancelled;
+    /// and if canelled it can't be modifed again
+    /// @dev re-entry guard is used to prevent re-entrancy such as participants cancelling the order in 
+    /// the middle of exuction of the function and draining the contract's funds
     /// @param _orderId: the unique identifier of the order
-    function cancelOrder(uint256 _orderId) external onlyParticipants(_orderId, msg.sender) {
-        Order storage order = s_Orders[_orderId];
+    function cancelOrder(uint256 _orderId) external onlyParticipants(_orderId, msg.sender) nonReentrant {
+        Order storage order = m_Orders[_orderId];
 
         //if this func is called after deposition of funds
         require(order.hasDeposited == true, "Funds have not been deposited in the contract just yet!");
 
         // If the buyer cancels the order, they can withdraw their funds
         uint256 balance = order.price;
-        address payable receiver = payable(order.buyer);
-        (bool sent,) = receiver.call{value: balance}("");
-        if (!sent) {
-            revert OrderManagerWithdrawFailed();
+        if (msg.sender == order.buyer) {
+            address payable receiver = payable(order.buyer);
+            (bool sent,) = receiver.call{value: balance}("");
+            if (!sent) {
+                revert OrderManagerWithdrawFailed();
+            }
+            order.orderState = e_OrderState.B_CANCELLED;
+
+            //delete the order from the mapping
+            delete m_Orders[_orderId];
+
+            emit FundsTransferredToBuyer(msg.sender, balance);
+            //Early return if buyer cancels
+            return;
         }
-        if (msg.sender == order.seller) {
-            order.orderState = OrderState.S_CANCELLED;
-            // TODO: we could penalize the Seller for cancelling the order
-        }
-        order.orderState = OrderState.B_CANCELLED;
+        order.orderState = e_OrderState.S_CANCELLED;
+        // TODO: we could penalize the Seller for cancelling the order
+
         //delete the order from the mapping
-        delete s_Orders[_orderId];
-        emit FundsTransferredToBuyer(receiver, balance);
+        delete m_Orders[_orderId];
+        emit FundsTransferredToSeller(msg.sender, balance);
     }
 
     /// @notice confirmOrder: order could be confirmed by either buyer or seller
     /// @dev modifer onlyParticipants: only buyer or seller can call this function
     /// @param _orderId: the unique identifier of the order
     function confirmOrder(uint256 _orderId) external onlyParticipants(_orderId, msg.sender) {
-        Order storage order = s_Orders[_orderId];
+        Order storage order = m_Orders[_orderId];
         require(order.hasDeposited == true, "Funds have not been deposited in the contract just yet!");
         if (msg.sender == order.buyer) {
-            order.orderState = OrderState.B_CONFIRMED;
+            order.orderState = e_OrderState.B_CONFIRMED;
         } else {
-            if (order.orderState != OrderState.B_CONFIRMED) {
+            if (order.orderState != e_OrderState.B_CONFIRMED) {
                 revert("Buyer has not confirmed the order yet!");
             }
-            order.orderState = OrderState.S_CONFIRMED;
+            order.orderState = e_OrderState.S_CONFIRMED;
         }
     }
 
@@ -144,15 +154,17 @@ contract OrderManager {
     function mintNftToBuyerAndWithdraw(uint256 _orderId, string memory _tokenUri)
         external
         onlySeller(_orderId, msg.sender)
+        nonReentrant
     {
         require(
-            s_Orders[_orderId].orderState == OrderState.S_CONFIRMED, "Order has not been confirmed by the buyer yet!"
+            m_Orders[_orderId].orderState == e_OrderState.S_CONFIRMED, "Order has not been confirmed by the buyer yet!"
         );
-        Order storage order = s_Orders[_orderId];
+        Order storage order = m_Orders[_orderId];
         VehicleNFT nft = VehicleNFT(order.nftContractAddress);
         //minting nft token
         uint256 tokenId = nft.mintToken(_tokenUri);
         order.tokenId = tokenId;
+
         //trasnsferring ownership to buyer
         // during minting we have given the orderManager contract the approval to transfer the NFTs
         nft.transferFrom(address(this), order.buyer, tokenId);
@@ -161,24 +173,24 @@ contract OrderManager {
         withdrawFundsToSellerAddress(_orderId);
     }
 
-    // Internal functions
+    //----------------------------------INTERNAL FUNCTIONS----------------------------------------------
 
     /// @notice  withdraw: the seller can withdraw the funds after the buyer has confirmed the order
     /// @dev will be called internally after the order has been confirmed by both the parties
     /// @param _orderId: the unique identifier of the order
     function withdrawFundsToSellerAddress(uint256 _orderId) internal {
-        Order storage order = s_Orders[_orderId];
+        Order storage order = m_Orders[_orderId];
 
         //if this func is called after deposition of funds
         require(order.hasDeposited == true, "Funds have not been deposited in the contract just yet!");
 
         uint256 balance = order.price;
+        order.orderState = e_OrderState.COMPLETED;
         address payable receiver = payable(order.seller);
         (bool sent,) = receiver.call{value: balance}("");
         if (!sent) {
             revert OrderManagerWithdrawFailed();
         }
-        order.orderState = OrderState.COMPLETED;
         emit FundsTransferredToSeller(receiver, balance);
     }
 
@@ -188,23 +200,23 @@ contract OrderManager {
     }
 
     function getBuyer(uint256 _orderId) external view returns (address) {
-        return s_Orders[_orderId].buyer;
+        return m_Orders[_orderId].buyer;
     }
 
     function getSeller(uint256 _orderId) external view returns (address) {
-        return s_Orders[_orderId].seller;
+        return m_Orders[_orderId].seller;
     }
 
     function getPrice(uint256 _orderId) external view returns (uint256) {
-        return s_Orders[_orderId].price;
+        return m_Orders[_orderId].price;
     }
 
     function getOrderById(uint256 _orderId) external view returns (Order memory) {
-        return s_Orders[_orderId];
+        return m_Orders[_orderId];
     }
 
     function getNftTokenByOrderId(uint256 _orderId) external view returns (uint256) {
-        Order storage order = s_Orders[_orderId];
+        Order storage order = m_Orders[_orderId];
         return order.tokenId;
     }
 }

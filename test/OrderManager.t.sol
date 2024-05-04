@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.23;
 
 import {Test, console} from "forge-std/Test.sol";
 import {OrderManager} from "../src/OrderManager.sol";
@@ -23,7 +23,7 @@ contract OrderManagerTest is Test {
         assertEq(orderM.getOrderById(orderId).owner, seller);
         assertEq(orderM.getOrderById(orderId).buyer, buyer);
         assertEq(orderM.getOrderById(orderId).price, price);
-        // assertEq(orderM.getOrderById(orderId).orderState, orderM.OrderState.B_REQUESTED);
+        // assertEq(orderM.getOrderById(orderId).orderState, 0);
         vm.stopPrank();
         return orderId;
     }
@@ -115,7 +115,12 @@ contract OrderManagerTest is Test {
         address nftContractAddress = orderM.s_nftContractAddress();
         VehicleNFT nft = VehicleNFT(nftContractAddress);
         assertEq(buyer, nft.getOwnerOfTokenById(1));
-        assertEq(seller.balance,  price);
+        assertEq(seller.balance, price);
+        assertEq(buyer.balance, 10 ether - price);
         vm.stopPrank();
     }
+
+
+    // write tests to ensure func for multiple assets and orders being managed like 100 or so
+
 }
