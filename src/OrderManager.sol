@@ -25,11 +25,10 @@ contract OrderManager is ReentrancyGuard {
         address owner;
         address buyer;
         address seller;
-        uint256 price;
-        address nftContractAddress;
-        uint256 tokenId;
-        e_OrderState orderState;
         bool hasDeposited;
+        e_OrderState orderState;
+        uint256 price;
+        uint256 tokenId;
     }
 
     mapping(uint256 => Order) public m_Orders;
@@ -69,12 +68,11 @@ contract OrderManager is ReentrancyGuard {
 
     /// @notice func to create a listed of an advertised asset
     /// @dev    the owner of the asset is the seller of the asset
-    /// @param _buyer : the buyer of the asset; _price: the price of the asset; msg.sender is the seller 
+    /// @param _buyer : the buyer of the asset; _price: the price of the asset; msg.sender is the seller
     /// and the owner of the asset; s_nftContractAddress is the address of the nft contract which would have been set in the constructor
     /// @return uin256 orderID: the unique identifier of the order
     function ListAsset(address _buyer, uint256 _price) external returns (uint256) {
-        m_Orders[++s_orderCount] =
-            Order(msg.sender, _buyer, msg.sender, _price, s_nftContractAddress, 0, e_OrderState.B_REQUESTED, false);
+        m_Orders[++s_orderCount] = Order(msg.sender, _buyer, msg.sender, false, e_OrderState.B_REQUESTED, _price, 0);
         return s_orderCount;
     }
 
@@ -93,10 +91,10 @@ contract OrderManager is ReentrancyGuard {
     }
 
     /// @notice cancelOrder: order could be cancelled by either buyer or seller
-    /// @dev if a buyer cancels then : their funds are returned and order is cancelled and order is deleted from the mapping; 
+    /// @dev if a buyer cancels then : their funds are returned and order is cancelled and order is deleted from the mapping;
     /// if a seller cancels then : if there are funds;then they are retureed; if not the order state is just cancelled;
     /// and if canelled it can't be modifed again
-    /// @dev re-entry guard is used to prevent re-entrancy such as participants cancelling the order in 
+    /// @dev re-entry guard is used to prevent re-entrancy such as participants cancelling the order in
     /// the middle of exuction of the function and draining the contract's funds
     /// @param _orderId: the unique identifier of the order
     function cancelOrder(uint256 _orderId) external onlyParticipants(_orderId, msg.sender) nonReentrant {
@@ -160,7 +158,7 @@ contract OrderManager is ReentrancyGuard {
             m_Orders[_orderId].orderState == e_OrderState.S_CONFIRMED, "Order has not been confirmed by the buyer yet!"
         );
         Order storage order = m_Orders[_orderId];
-        VehicleNFT nft = VehicleNFT(order.nftContractAddress);
+        VehicleNFT nft = VehicleNFT(s_nftContractAddress);
         //minting nft token
         uint256 tokenId = nft.mintToken(_tokenUri);
         order.tokenId = tokenId;

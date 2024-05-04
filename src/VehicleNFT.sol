@@ -5,13 +5,17 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 
 contract VehicleNFT is ERC721URIStorage {
+    //-------------------STATE VARS--------------------------------
     uint256 public s_tokenId;
     address public s_OrderManagerAddress;
+
     //tokenId to query their creator address
     mapping(uint256 => address) private m_creators;
 
+    //-------------------EVENTS--------------------------------
     event TokenMinted(uint256 indexed tokenId, string tokenURI, address s_OrderManagerAddress);
 
+    //-------------------MODIFIERS--------------------------------
     modifier onlyOrderManager() {
         require(msg.sender == s_OrderManagerAddress, "Only OrderManager can call this function");
         _;
@@ -26,6 +30,10 @@ contract VehicleNFT is ERC721URIStorage {
         _setApprovalForAll(address(this), s_OrderManagerAddress, true);
     }
 
+    //-------------------PUBLIC FUNCTIONS--------------------------------
+    /// @dev mints a new token and assigns it to the OrderManager contract
+    /// @param tokenURI uri of the token which is the metadata of the token
+    /// @return tokenID returns the tokenId of the minted token
     function mintToken(string memory tokenURI) public onlyOrderManager returns (uint256) {
         ++s_tokenId;
         uint256 newItemId = s_tokenId;
