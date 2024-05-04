@@ -36,10 +36,13 @@ contract OrderManager is ReentrancyGuard {
     address public s_nftContractAddress;
 
     //----------------------------------EVENTS----------------------------------------------
-    event LogMsgSender(address indexed from);
     event FundsTransferredToBuyer(address indexed to, uint256 indexed amount);
     event FundsTransferredToSeller(address indexed to, uint256 indexed amount);
     event FundsDeposited(address indexed from, uint256 indexed amount, uint256 indexed orderId);
+    event OrderCancelled(address indexed by, uint256 indexed orderId);
+    event OrderConfirmed(address indexed by, uint256 indexed orderId);
+    event OrderCompleted(uint256 indexed orderId);
+    event OrderCreated(address indexed by, uint256 indexed orderId);
 
     //----------------------------------MODIFIERS----------------------------------------------
     modifier onlyBuyer(uint256 _orderId, address msgSender) {
@@ -67,7 +70,7 @@ contract OrderManager is ReentrancyGuard {
     //----------------------------------EXTERNAL FUNCTIONS----------------------------------------------
 
     /// @notice func to create a listed of an advertised asset
-    /// @dev    the owner of the asset is the seller of the asset
+    /// @dev    the owner of the asset is the seller of the asset; this func would be invoked when the buyer selects an asset to buy from the marketplace
     /// @param _buyer : the buyer of the asset; _price: the price of the asset; msg.sender is the seller
     /// and the owner of the asset; s_nftContractAddress is the address of the nft contract which would have been set in the constructor
     /// @return uin256 orderID: the unique identifier of the order
@@ -113,6 +116,8 @@ contract OrderManager is ReentrancyGuard {
             }
             order.orderState = e_OrderState.B_CANCELLED;
 
+            emit OrderCancelled(msg.sender, _orderId);
+
             //delete the order from the mapping
             delete m_Orders[_orderId];
 
@@ -125,6 +130,7 @@ contract OrderManager is ReentrancyGuard {
 
         //delete the order from the mapping
         delete m_Orders[_orderId];
+        emit OrderCancelled(msg.sender, _orderId);
         emit FundsTransferredToSeller(msg.sender, balance);
     }
 
@@ -142,6 +148,7 @@ contract OrderManager is ReentrancyGuard {
             }
             order.orderState = e_OrderState.S_CONFIRMED;
         }
+        emit OrderConfirmed(msg.sender, _orderId);
     }
 
     /// @notice minftNftToBuyerAndWithdraw: mint the NFT to the buyer and withdraw the funds to the seller
@@ -189,6 +196,7 @@ contract OrderManager is ReentrancyGuard {
         if (!sent) {
             revert OrderManagerWithdrawFailed();
         }
+        emit OrderCompleted(_orderId);
         emit FundsTransferredToSeller(receiver, balance);
     }
 
